@@ -1,0 +1,27 @@
+CPP
+1. Trzeba wejść do folderu 
+
+2. KOMPILACJA KODU
+
+Aby skompilować kod w C++ --> KOMPILATOR CLANG
+Trzeba wpisać komendę:
+
+clang++ -std=c++14 cw10.cpp -o cw10
+
+
+3. URUCHOMIENIE PROGRAMU
+
+Trzeba wpisać:
+
+./cw10
+
+Po wpisaniu tej komendy na ekranie powinny pojawić się wszystkie wyniki z Twoimi błędami dla float, double i long double.
+
+///////////////////
+
+PYTHON
+1. Trzeba wpisać:
+
+/usr/local/bin/python3 cw10.py
+
+/usr/local/bin/python3 wykres.py

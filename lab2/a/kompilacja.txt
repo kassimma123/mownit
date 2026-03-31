@@ -1,0 +1,16 @@
+=============================================================
+INSTRUKCJA URUCHOMIENIA I KOMPILACJI ZADANIA 2a 
+Autor: Katarzyna Piskorz
+=============================================================
+
+1. WYMAGANIA WSTĘPNE
+Aby poprawnie uruchomić kod i wygenerować sprawozdanie, wymagane jest posiadanie:
+- Zainstalowanego interpretera Python (wersja 3.x, zalecana 3.14+).
+- Zainstalowanych bibliotek Pythona: `numpy`, `matplotlib`, `pandas`.
+
+2. URUCHOMIENIE KODU (GENEROWANIE WYKRESÓW)
+- Skrypt w języku Python znajduje się w pliku głównym (np. `main.py`).
+- Aby go uruchomić, należy otworzyć terminal w folderze z projektem i wpisać komendę:
+  python main.py
+- Skrypt automatycznie wykona wszystkie obliczenia, wypisze w konsoli tabelę z błędami oraz wygeneruje i zapisze w folderze wykresy w formacie .png (m.in. dla n=10, 15, 20).
+
