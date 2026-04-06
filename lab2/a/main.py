@@ -62,62 +62,59 @@ def generuj_wyniki_do_sprawozdania(n_lista):
     a, b = -5, 5
     x_geste = np.linspace(a, b, 1000)
     y_prawdziwe = funkcja_f10(x_geste)
-    
     wyniki = []
 
     for n in n_lista:
-        # 1. Węzły
         xr = wezly_rownomierne(a, b, n)
         xc = wezly_czebyszewa(a, b, n)
         
-        # 2. Wielomiany
         y_lag_r = interpolacja_lagrangea(xr, funkcja_f10(xr), x_geste)
         y_lag_c = interpolacja_lagrangea(xc, funkcja_f10(xc), x_geste)
         y_newt_r = interpolacja_newtona(xr, funkcja_f10(xr), x_geste)
         y_newt_c = interpolacja_newtona(xc, funkcja_f10(xc), x_geste) 
         
-        # 3. Pomiary Błędów Równomierne (Max i MSE)
         err_max_r = np.max(np.abs(y_prawdziwe - y_lag_r))
         err_mse_r = np.mean((y_prawdziwe - y_lag_r)**2)
-        
-        # 4. Pomiary Błędów Czebyszew (Max i MSE)
         err_max_c = np.max(np.abs(y_prawdziwe - y_lag_c))
         err_mse_c = np.mean((y_prawdziwe - y_lag_c)**2)
         
-        # 5. Różnica metody Lagrange vs Newton (dla obu rodzajów węzłów)
         roznica_metod_r = np.max(np.abs(y_lag_r - y_newt_r))
         roznica_metod_c = np.max(np.abs(y_lag_c - y_newt_c)) 
         
-        # 6. Dodanie do tabeli
         wyniki.append({
-            "n": n,
-            "Max Błąd (Równ)": f"{err_max_r:.2e}",
-            "MSE (Równ)": f"{err_mse_r:.2e}",
-            "Max Błąd (Czeb)": f"{err_max_c:.2e}",
-            "Różnica Lag-Newt (Równ)": f"{roznica_metod_r:.2e}",
+            "n": n, "Max Błąd (Równ)": f"{err_max_r:.2e}", "MSE (Równ)": f"{err_mse_r:.2e}",
+            "Max Błąd (Czeb)": f"{err_max_c:.2e}", "Różnica Lag-Newt (Równ)": f"{roznica_metod_r:.2e}",
             "Różnica Lag-Newt (Czeb)": f"{roznica_metod_c:.2e}" 
         })
         
-        # 7. Zapisywanie wykresów tylko dla ciekawych 'n' 
-        if n in [3, 4, 5, 6, 7, 8, 9, 10, 15, 20, 30, 45]:
-            plt.figure(figsize=(8, 4))
-            plt.plot(x_geste, y_prawdziwe, 'k--', label='Funkcja f10(x)')
-            plt.plot(x_geste, y_lag_r, 'b-', label=f'Lagrange (Równomierne n={n})')
-            plt.plot(x_geste, y_lag_c, 'g-', label=f'Lagrange (Czebyszew n={n})')
-            plt.plot(xr, funkcja_f10(xr), 'bo', label='Węzły Równ.')
-            
-            # Ogranicznik
-            plt.ylim(min(y_prawdziwe) - 10, max(y_prawdziwe) + 15)
-            
-            plt.title(f"Interpolacja n={n} | Max błąd (Równ): {err_max_r:.1f}")
-            plt.legend()
+        # Generowanie OSOBNYCH wykresów dla Typsta
+        if n in [10, 15, 20]:
+            # 1. Wykres Równomierne
+            plt.figure(figsize=(6, 4))
+            plt.plot(x_geste, y_prawdziwe, 'k--', linewidth=1.5, label='Funkcja f10(x)')
+            plt.plot(x_geste, y_newt_r, 'b-', linewidth=1.5, label=f'Wielomian (n={n})')
+            plt.plot(xr, funkcja_f10(xr), 'ro', markersize=5, label='Węzły')
+            plt.ylim(-10, 40) # Ustawienie sztywnej osi Y żeby wykresy były równe
+            plt.title(f"Węzły równomierne n={n}")
             plt.grid(True)
-            plt.savefig(f"wykres_interpolacja_n{n}.png", bbox_inches='tight')
+            plt.legend()
+            plt.savefig(f"wykres_rown_n{n}.png", bbox_inches='tight')
+            plt.close()
+
+            # 2. Wykres Czebyszewa
+            plt.figure(figsize=(6, 4))
+            plt.plot(x_geste, y_prawdziwe, 'k--', linewidth=1.5, label='Funkcja f10(x)')
+            plt.plot(x_geste, y_newt_c, 'g-', linewidth=1.5, label=f'Wielomian (n={n})')
+            plt.plot(xc, funkcja_f10(xc), 'ro', markersize=5, label='Węzły')
+            plt.ylim(-10, 40) # Ta sama oś Y!
+            plt.title(f"Węzły Czebyszewa n={n}")
+            plt.grid(True)
+            plt.legend()
+            plt.savefig(f"wykres_czeb_n{n}.png", bbox_inches='tight')
             plt.close()
 
     df = pd.DataFrame(wyniki)
     print(df.to_string(index=False))
 
-# ODPALENIE TESTÓW
 n_do_testow = [3, 4, 5, 6, 7, 8, 9, 10, 15, 20, 30, 45]
 generuj_wyniki_do_sprawozdania(n_do_testow)

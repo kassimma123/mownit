@@ -1,7 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-#  1. Funkcja, pochodna, węzły
 def funkcja_f10(x):
     m = 5; k = 0.5
     return x**2 - m * np.cos((np.pi * x) / k)
@@ -17,8 +16,7 @@ def wezly_czebyszewa(a, b, n):
     k = np.arange(n)
     return 0.5 * (a + b) + 0.5 * (b - a) * np.cos((2 * k + 1) * np.pi / (2 * n))
 
-#  2. ALGORYTMY INTERPOLACJI 
-#  NEWTON 
+# --- NEWTON ---
 def ilorazy_roznicowe_newton(x_wezly, y_wezly):
     n = len(x_wezly)
     tabela = np.zeros([n, n])
@@ -39,7 +37,7 @@ def interpolacja_newtona(x_wezly, y_wezly, x_punkty):
         y_wynik += kolejna_warstwa
     return y_wynik
 
-#  HERMITE 
+# --- HERMITE ---
 def ilorazy_roznicowe_hermite(x_wezly, y_wezly, yp_wezly):
     n = len(x_wezly)
     z = np.zeros(2*n)
@@ -49,7 +47,7 @@ def ilorazy_roznicowe_hermite(x_wezly, y_wezly, yp_wezly):
         z[2*i+1] = x_wezly[i]
         Q[2*i][0] = y_wezly[i]
         Q[2*i+1][0] = y_wezly[i]
-        Q[2*i+1][1] = yp_wezly[i]
+        Q[2*i+1][1] = yp_wezly[i] 
         if i != 0:
             Q[2*i][1] = (Q[2*i][0] - Q[2*i-1][0]) / (z[2*i] - z[2*i-1])
     for j in range(2, 2*n):
@@ -67,52 +65,47 @@ def interpolacja_hermite(x_wezly, y_wezly, yp_wezly, x_punkty):
         y_wynik += wspolczynniki[i] * iloczyn
     return y_wynik
 
-#  3. RYSOWANIE PORÓWNANIA 
-def porownaj_wykresy(n):
+# --- RYSOWANIE WYKRESÓW: NEWTON VS HERMITE OBOK SIEBIE ---
+def generuj_wykresy():
     a, b = -5, 5
     x_geste = np.linspace(a, b, 1000)
     y_prawdziwe = funkcja_f10(x_geste)
-    
-    # Przygotowanie okna z dwoma wykresami (lewy i prawy)
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
-    
-    #  WYKRES 1: Węzły Równomierne 
-    x_row = wezly_rownomierne(a, b, n)
-    y_row = funkcja_f10(x_row)
-    yp_row = pochodna_f10(x_row)
-    
-    y_newt_row = interpolacja_newtona(x_row, y_row, x_geste)
-    y_herm_row = interpolacja_hermite(x_row, y_row, yp_row, x_geste)
-    
-    ax1.plot(x_geste, y_prawdziwe, 'k--', linewidth=2, label='Funkcja oryginalna')
-    ax1.plot(x_geste, y_newt_row, 'b-', label=f'Newton (Stopień {n-1})')
-    ax1.plot(x_geste, y_herm_row, 'r-', label=f'Hermite (Stopień {2*n-1})')
-    ax1.plot(x_row, y_row, 'ko', markersize=6, label='Węzły')
-    
-    ax1.set_title(f"Węzły Równomierne (n={n})")
-    ax1.set_ylim(min(y_prawdziwe) - 10, max(y_prawdziwe) + 20)
-    ax1.grid(True)
-    ax1.legend()
 
-    #  WYKRES 2: Węzły Czebyszewa 
-    x_czeb = wezly_czebyszewa(a, b, n)
-    y_czeb = funkcja_f10(x_czeb)
-    yp_czeb = pochodna_f10(x_czeb)
-    
-    y_newt_czeb = interpolacja_newtona(x_czeb, y_czeb, x_geste)
-    y_herm_czeb = interpolacja_hermite(x_czeb, y_czeb, yp_czeb, x_geste)
-    
-    ax2.plot(x_geste, y_prawdziwe, 'k--', linewidth=2, label='Funkcja oryginalna')
-    ax2.plot(x_geste, y_newt_czeb, 'b-', label=f'Newton (Stopień {n-1})')
-    ax2.plot(x_geste, y_herm_czeb, 'r-', label=f'Hermite (Stopień {2*n-1})')
-    ax2.plot(x_czeb, y_czeb, 'ko', markersize=6, label='Węzły')
-    
-    ax2.set_title(f"Węzły Czebyszewa (n={n})")
-    ax2.set_ylim(min(y_prawdziwe) - 10, max(y_prawdziwe) + 20)
-    ax2.grid(True)
-    ax2.legend()
+    for n in [8, 15]: # Rysujemy tylko dla najciekawszych przypadków
+        # 1. RÓWNOMIERNE (Newton po lewej, Hermite po prawej)
+        xr = wezly_rownomierne(a, b, n)
+        yn_r = interpolacja_newtona(xr, funkcja_f10(xr), x_geste)
+        yh_r = interpolacja_hermite(xr, funkcja_f10(xr), pochodna_f10(xr), x_geste)
+        
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4))
+        ax1.plot(x_geste, y_prawdziwe, 'k--', label='Oryginał')
+        ax1.plot(x_geste, yn_r, 'b-', label='Newton')
+        ax1.plot(xr, funkcja_f10(xr), 'ro'); ax1.set_title(f'Newton (Równomierne n={n})')
+        ax1.set_ylim(-10, 40); ax1.grid(True); ax1.legend()
+        
+        ax2.plot(x_geste, y_prawdziwe, 'k--', label='Oryginał')
+        ax2.plot(x_geste, yh_r, 'g-', label='Hermite')
+        ax2.plot(xr, funkcja_f10(xr), 'ro'); ax2.set_title(f'Hermite (Równomierne n={n})')
+        ax2.set_ylim(-10, 40); ax2.grid(True); ax2.legend()
+        plt.savefig(f"newt_vs_herm_rown_n{n}.png", bbox_inches='tight')
+        plt.close()
 
-    plt.tight_layout()
-    plt.show()
+        # 2. CZEBYSZEWA (Newton po lewej, Hermite po prawej)
+        xc = wezly_czebyszewa(a, b, n)
+        yn_c = interpolacja_newtona(xc, funkcja_f10(xc), x_geste)
+        yh_c = interpolacja_hermite(xc, funkcja_f10(xc), pochodna_f10(xc), x_geste)
 
-porownaj_wykresy(n=20)
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4))
+        ax1.plot(x_geste, y_prawdziwe, 'k--', label='Oryginał')
+        ax1.plot(x_geste, yn_c, 'b-', label='Newton')
+        ax1.plot(xc, funkcja_f10(xc), 'ro'); ax1.set_title(f'Newton (Czebyszew n={n})')
+        ax1.set_ylim(-10, 40); ax1.grid(True); ax1.legend()
+        
+        ax2.plot(x_geste, y_prawdziwe, 'k--', label='Oryginał')
+        ax2.plot(x_geste, yh_c, 'g-', label='Hermite')
+        ax2.plot(xc, funkcja_f10(xc), 'ro'); ax2.set_title(f'Hermite (Czebyszew n={n})')
+        ax2.set_ylim(-10, 40); ax2.grid(True); ax2.legend()
+        plt.savefig(f"newt_vs_herm_czeb_n{n}.png", bbox_inches='tight')
+        plt.close()
+
+generuj_wykresy()
