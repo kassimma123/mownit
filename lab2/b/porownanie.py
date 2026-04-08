@@ -71,7 +71,7 @@ def generuj_wykresy():
     x_geste = np.linspace(a, b, 1000)
     y_prawdziwe = funkcja_f10(x_geste)
 
-    for n in [8, 15]: # Rysujemy tylko dla najciekawszych przypadków
+    for n in [3, 4, 5, 6, 7, 8, 9, 10, 15, 20, 30]: # Rysujemy tylko dla najciekawszych przypadków
         # 1. RÓWNOMIERNE (Newton po lewej, Hermite po prawej)
         xr = wezly_rownomierne(a, b, n)
         yn_r = interpolacja_newtona(xr, funkcja_f10(xr), x_geste)
