@@ -1,0 +1,17 @@
+=============================================================
+INSTRUKCJA URUCHOMIENIA I KOMPILACJI ZADANIA 2b (Hermite)
+Autor: Katarzyna Piskorz
+=============================================================
+
+1. WYMAGANIA WSTĘPNE
+Aby poprawnie uruchomić kod i wygenerować sprawozdanie, wymagane jest posiadanie:
+- Zainstalowanego interpretera Python (wersja 3.x, np. 3.14+).
+- Zainstalowanych bibliotek Pythona: `numpy` oraz `matplotlib`.
+
+2. URUCHOMIENIE KODU (GENEROWANIE DANYCH I WYKRESÓW)
+- Skrypt obliczeniowy znajduje się w głównym pliku Pythona (np. `main.py`).
+- Aby go uruchomić, otwórz terminal w folderze z projektem i wpisz komendę:
+  python main.py
+- Po uruchomieniu skrypt automatycznie:
+  a) Wygeneruje i zapisze w folderze podwójne wykresy porównawcze w formacie .png .
+  b) Wypisze w konsoli gotowe wiersze z danymi tabelarycznymi (błąd maksymalny i MSE), sformatowane w nawiasach kwadratowych.

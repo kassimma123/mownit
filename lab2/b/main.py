@@ -65,14 +65,14 @@ def interpolacja_hermite(x_wezly, y_wezly, yp_wezly, x_punkty):
         y_wynik += wspolczynniki[i] * iloczyn
     return y_wynik
 
-# --- RYSOWANIE WYKRESÓW: NEWTON VS HERMITE OBOK SIEBIE ---
+# --- RYSOWANIE WYKRESÓW ---
 def generuj_wykresy():
     a, b = -5, 5
     x_geste = np.linspace(a, b, 1000)
     y_prawdziwe = funkcja_f10(x_geste)
 
-    for n in [3, 4, 5, 6, 7, 8, 9, 10, 15, 20, 30]: # Rysujemy tylko dla najciekawszych przypadków
-        # 1. RÓWNOMIERNE (Newton po lewej, Hermite po prawej)
+    for n in [3, 4, 5, 6, 7, 8, 9, 10, 15, 20, 30]: 
+        # 1. RÓWNOMIERNE 
         xr = wezly_rownomierne(a, b, n)
         yn_r = interpolacja_newtona(xr, funkcja_f10(xr), x_geste)
         yh_r = interpolacja_hermite(xr, funkcja_f10(xr), pochodna_f10(xr), x_geste)
@@ -90,7 +90,7 @@ def generuj_wykresy():
         plt.savefig(f"newt_vs_herm_rown_n{n}.png", bbox_inches='tight')
         plt.close()
 
-        # 2. CZEBYSZEWA (Newton po lewej, Hermite po prawej)
+        # 2. CZEBYSZEWA 
         xc = wezly_czebyszewa(a, b, n)
         yn_c = interpolacja_newtona(xc, funkcja_f10(xc), x_geste)
         yh_c = interpolacja_hermite(xc, funkcja_f10(xc), pochodna_f10(xc), x_geste)
@@ -108,4 +108,48 @@ def generuj_wykresy():
         plt.savefig(f"newt_vs_herm_czeb_n{n}.png", bbox_inches='tight')
         plt.close()
 
+# --- GENEROWANIE TABELI WYNIKÓW ---
+def generuj_tabele():
+    a, b = -5, 5
+    x_geste = np.linspace(a, b, 1000)
+    y_prawdziwe = funkcja_f10(x_geste)
+    
+    n_lista = [3, 4, 5, 6, 7, 8, 9, 10, 15, 20, 30]
+    
+    print("GOTOWY KOD DO TYPSTA (skopiuj i wklej wewnątrz `table()`):")
+    print("-" * 100)
+    
+    for n in n_lista:
+        # Pomiary dla węzłów równomiernych
+        xr = wezly_rownomierne(a, b, n)
+        yr = funkcja_f10(xr)
+        ypr = pochodna_f10(xr)
+        
+        yn_r = interpolacja_newtona(xr, yr, x_geste)
+        yh_r = interpolacja_hermite(xr, yr, ypr, x_geste)
+        
+        err_max_n_r = np.max(np.abs(y_prawdziwe - yn_r))
+        err_max_h_r = np.max(np.abs(y_prawdziwe - yh_r))
+        mse_h_r = np.mean((y_prawdziwe - yh_r)**2)
+        
+        # Pomiary dla węzłów Czebyszewa
+        xc = wezly_czebyszewa(a, b, n)
+        yc = funkcja_f10(xc)
+        ypc = pochodna_f10(xc)
+        
+        yn_c = interpolacja_newtona(xc, yc, x_geste)
+        yh_c = interpolacja_hermite(xc, yc, ypc, x_geste)
+        
+        err_max_n_c = np.max(np.abs(y_prawdziwe - yn_c))
+        err_max_h_c = np.max(np.abs(y_prawdziwe - yh_c))
+        mse_h_c = np.mean((y_prawdziwe - yh_c)**2)
+        
+        # Wypisywanie z odpowiednim formatowaniem
+        print(f"  [{n}],  [{err_max_n_r:.2e}], [{err_max_h_r:.2e}], [{mse_h_r:.2e}], [{err_max_n_c:.2e}], [{err_max_h_c:.2e}], [{mse_h_c:.2e}],")
+
+    print("-" * 100)
+
+
+# Uruchomienie skryptu
+generuj_tabele()
 generuj_wykresy()
