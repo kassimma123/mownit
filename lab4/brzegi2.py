@@ -1,15 +1,52 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
-from scipy.interpolate import interp1d, CubicSpline
+from scipy.interpolate import CubicSpline
 
-# 1. Definicja funkcji i jej pochodnej
+# 1. Definicja funkcji bazowej i jej pochodnych
 def f(x):
     return x**2 - 5 * np.cos(2 * np.pi * x)
 
 def df(x):
     return 2*x + 10 * np.pi * np.sin(2 * np.pi * x)
 
+def d2f(x):
+    return 2 + 20 * np.pi**2 * np.cos(2 * np.pi * x)
+
+# 2. Własna implementacja splajnu 2. stopnia z warunkami brzegowymi
+def fit_quadratic_spline(xs, ys, bc_type='free', d2f_a=None):
+    n = len(xs)
+    h = np.diff(xs) 
+    
+    A = np.zeros((n, n))
+    B = np.zeros(n)
+    
+    if bc_type == 'free':
+        A[0, 0] = 1.0
+        B[0] = 0.0
+    elif bc_type == 'clamped':
+        A[0, 0] = -1.0
+        A[0, 1] = 1.0
+        B[0] = d2f_a * h[0]  # POPRAWKA: Usunięto 0.5 wg poprawnego wzoru!
+        
+    for i in range(1, n):
+        A[i, i-1] = 1.0
+        A[i, i] = 1.0
+        B[i] = 2 * (ys[i] - ys[i-1]) / h[i-1]
+        
+    b_coeffs = np.linalg.solve(A, B)
+    
+    def eval_spline(x_eval):
+        idx = np.searchsorted(xs, x_eval) - 1
+        idx = np.clip(idx, 0, n - 2) 
+        dx = x_eval - xs[idx]
+        a_coeffs = (b_coeffs[1:] - b_coeffs[:-1]) / (2 * h)
+        c_coeffs = ys[:-1]
+        return a_coeffs[idx] * dx**2 + b_coeffs[idx] * dx + c_coeffs[idx]
+        
+    return eval_spline
+
+# 3. Główna funkcja eksperymentu
 def generuj_i_zapisz_splajny(n_nodes):
     a, b = -5, 5
     x_fine = np.linspace(a, b, 1000)
@@ -18,56 +55,41 @@ def generuj_i_zapisz_splajny(n_nodes):
     x_w = np.linspace(a, b, n_nodes)
     y_w = f(x_w)
     
-    # --- OBLICZENIA ---
-    # Stopień 3: Naturalny (2-ga pochodna na końcach = 0)
     s3_nat = CubicSpline(x_w, y_w, bc_type='natural')
+    y_s3_nat = s3_nat(x_fine)
     
-    # Stopień 3: Ustalony (pochodne na końcach zgodne z funkcją)
     s3_cla = CubicSpline(x_w, y_w, bc_type=((1, df(a)), (1, df(b))))
+    y_s3_cla = s3_cla(x_fine)
     
-    # Stopień 2: Standardowy (kwadratowy)
-    s2_std = interp1d(x_w, y_w, kind='quadratic', fill_value="extrapolate")
+    s2_free = fit_quadratic_spline(x_w, y_w, bc_type='free')
+    y_s2_free = s2_free(x_fine)
     
-    # Stopień 2: Inny wariant (np. slinear dla porównania lub inna metoda)
-    # W scipy interp1d 'quadratic' ma jedno podejście, ale możemy zasymulować
-    # różnicę używając splajnu 2 stopnia przez CubicSpline z redukcją stopnia (teoretycznie)
-    # Dla potrzeb zadania skupmy się na tych trzech kluczowych różnicach.
+    s2_cla = fit_quadratic_spline(x_w, y_w, bc_type='clamped', d2f_a=d2f(a))
+    y_s2_cla = s2_cla(x_fine)
 
-    # --- WIZUALIZACJA ---
-    fig, axes = plt.subplots(1, 3, figsize=(18, 5), sharey=True)
-    fig.suptitle(f'Porównanie metod interpolacji: n = {n_nodes}', fontsize=16)
-
-    # Definicja danych do pętli wykresów
-    wykresy = [
-        (s3_nat(x_fine), 'S3: Naturalny', 'royalblue', '--'),
-        (s3_cla(x_fine), 'S3: Ustalony (Clamped)', 'crimson', '-'),
-        (s2_std(x_fine), 'S2: Kwadratowy', 'forestgreen', '-.')
-    ]
-
-    for ax, (y_spline, tytul, kolor, styl) in zip(axes, wykresy):
-        ax.plot(x_fine, y_true, color='gray', alpha=0.3, label='Oryginał f(x)')
-        ax.plot(x_fine, y_spline, color=kolor, linestyle=styl, label=tytul, lw=2)
-        ax.scatter(x_w, y_w, color='black', s=10, zorder=5, label='Węzły')
-        
-        ax.set_title(tytul)
-        ax.grid(True, linestyle=':', alpha=0.6)
-        ax.legend(loc='lower center', fontsize='small')
-        
-        # Obliczanie błędu maksymalnego dla opisu
-        err = np.max(np.abs(y_true - y_spline))
-        ax.text(0.05, 0.95, f'Max Err: {err:.2e}', transform=ax.transAxes, 
-                verticalalignment='top', bbox=dict(boxstyle='round', facecolor='white', alpha=0.5))
-
-    plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+    # POPRAWKA: Dodano np.sqrt() by faktycznie liczyć RMSE, a nie MSE!
+    wyniki = {
+        'n': n_nodes,
+        'S3_Nat_Max': np.max(np.abs(y_true - y_s3_nat)),
+        'S3_Nat_RMSE': np.sqrt(np.mean((y_true - y_s3_nat)**2)),
+        'S3_Cla_Max': np.max(np.abs(y_true - y_s3_cla)),
+        'S3_Cla_RMSE': np.sqrt(np.mean((y_true - y_s3_cla)**2)),
+        'S2_Free_Max': np.max(np.abs(y_true - y_s2_free)),
+        'S2_Free_RMSE': np.sqrt(np.mean((y_true - y_s2_free)**2)),
+        'S2_Cla_Max': np.max(np.abs(y_true - y_s2_cla)),
+        'S2_Cla_RMSE': np.sqrt(np.mean((y_true - y_s2_cla)**2))
+    }
     
-    # --- ZAPIS DO PLIKU ---
-    filename = f"porownanie_n{n_nodes}.png"
-    plt.savefig(filename, dpi=150)
-    print(f"Zapisano wykres: {filename}")
-    plt.show()
+    return wyniki
 
-# Lista n do testów
-nodes_list = [3, 5, 6, 7, 8, 9]
+# --- URUCHOMIENIE ---
+nodes_list = [5, 7, 8, 10, 12, 14, 15, 18, 25, 30, 60, 100]
+tabela_wynikow = []
 
 for n in nodes_list:
-    generuj_i_zapisz_splajny(n)
+    tabela_wynikow.append(generuj_i_zapisz_splajny(n))
+
+df_wyniki = pd.DataFrame(tabela_wynikow)
+pd.options.display.float_format = '{:.2e}'.format
+print("\n--- NOWA TABELA BŁĘDÓW (Z PRAWDZIWYM RMSE) ---")
+print(df_wyniki.to_string(index=False))
