@@ -5,9 +5,11 @@ import pandas as pd
 import warnings
 import os
 
+# Ukrywamy ostrzeżenia o źle uwarunkowanych macierzach
+# Robimy to celowo, bo w ramach laboratorium właśnie badamy to złe uwarunkowanie
 warnings.filterwarnings('ignore')
 
-# Ustawienie globalnego stylu, aby wykresy wyglądały "sprawozdaniowo"
+# Ustawienie globalnego stylu, aby wykresy wyglądały profesjonalnie ("sprawozdaniowo")
 plt.style.use('seaborn-v0_8-whitegrid')
 plt.rcParams['font.size'] = 11
 plt.rcParams['axes.titlesize'] = 13
@@ -15,9 +17,12 @@ plt.rcParams['axes.titlesize'] = 13
 # ==========================================
 # 1. PARAMETRY I FUNKCJA BAZOWA
 # ==========================================
+# Parametry funkcji zadane w poleceniu do laboratorium
 m_param = 5.0
 k_param = 0.5
 INTERVAL = (-5.0, 5.0)
+
+# Gęsta siatka punktów do rysowania płynnych wykresów "prawdziwej" funkcji
 X_DENSE = np.linspace(INTERVAL[0], INTERVAL[1], 1000)
 SAVE_DIR = "wykresy_sprawozdanie"
 
@@ -25,53 +30,99 @@ if not os.path.exists(SAVE_DIR):
     os.makedirs(SAVE_DIR)
 
 def f(x):
+    """
+    Nasza oryginalna, badana funkcja f(x).
+    """
     return x**2 - m_param * np.cos((np.pi * x) / k_param)
 
 def get_nodes(n):
+    """
+    Funkcja generująca n równoodległych węzłów aproksymacji na zadanym przedziale.
+    Zwraca tablice (wektory) współrzędnych x oraz wartości y=f(x) dla tych węzłów.
+    """
     x = np.linspace(INTERVAL[0], INTERVAL[1], n)
     return x, f(x)
 
 # ==========================================
-# 2. SILNIK APROKSYMACJI (Metoda Równań Normalnych)
+# 2. SILNIK APROKSYMACJI (Metoda Najmniejszych Kwadratów)
 # ==========================================
 def poly_approximation(x_nodes, y_nodes, degree):
+    """
+    Główna funkcja wykonująca aproksymację średniokwadratową wielomianami algebraicznymi.
+    Zwraca wyliczoną funkcję wielomianową (callable), którą można potem narysować.
+    """
     m = degree
+    
+    # Warunek konieczny: liczba węzłów (n) musi być ściśle większa od stopnia wielomianu (m)
+    # W przeciwnym razie układ jest niedookreślony (mamy za mało punktów do narysowania tak "powyginanej" krzywej)
     if len(x_nodes) <= m:
-        return None # Warunek aproksymacji: n > m (lub n >= m+1)
+        return None 
 
-    # Obliczanie macierzy Grama i wektora wyrazów wolnych
+    # --- KROK 1: Budowa układu równań normalnych (Macierz Grama i Wektor wyrazów wolnych) ---
+    # W aproksymacji średniokwadratowej nie szukamy wielomianu przechodzącego przez punkty, 
+    # ale takiego, który minimalizuje sumę kwadratów błędów.
+    # W tym celu budujemy układ postaci: A * c = b
+    # gdzie:
+    # A - macierz układu (tzw. Macierz Grama), zbudowana z sum potęg zmiennej x (od x^0 do x^(2m))
+    # c - wektor niewiadomych współczynników naszego wielomianu 
+    # b - wektor wyrazów wolnych, zależący od wartości x oraz f(x) (iloczyny f(x_i) * x_i^j)
+
+    # Najpierw liczymy wszystkie potrzebne sumy potęg iksów, żeby nie liczyć ich w pętli wielokrotnie (optymalizacja)
     x_powers = [np.sum(x_nodes**k) for k in range(2 * m + 1)]
+    
+    # Inicjalizacja pustej macierzy Grama (rozmiar m+1 na m+1)
     gram_matrix = np.zeros((m + 1, m + 1))
     for j in range(m + 1):
         for k in range(m + 1):
             gram_matrix[j, k] = x_powers[j + k]
 
+    # Budowa wektora wyrazów wolnych
     moment_vector = np.zeros(m + 1)
     for j in range(m + 1):
         moment_vector[j] = np.sum(y_nodes * (x_nodes**j))
 
+    # --- KROK 2: Rozwiązywanie układu równań ---
     try:
-        # solve używa rozkładu LU, tak jak wspomniano w sprawozdaniu (Sekcja 1)
+        # DO ROZWIĄZANIA UKŁADU UŻYWAMY FUNKCJI BIBLIOTECZNEJ: numpy.linalg.solve()
+        # Funkcja ta pod spodem wykorzystuje zaawansowany rozkład LU (z częściowym wyborem elementu głównego),
+        # co gwarantuje w miarę dobrą stabilność numeryczną dla dobrze uwarunkowanych macierzy.
         coeffs = np.linalg.solve(gram_matrix, moment_vector)
+        
     except np.linalg.LinAlgError:
-        coeffs = np.zeros(m + 1) # Fallback dla macierzy osobliwych
+        # Jeżeli stopień wielomianu (m) jest bardzo duży, wartości w macierzy Grama (typu x^30) 
+        # są tak ogromne, że macierz staje się osobliwa (wyznacznik bliski zeru). 
+        # Układ jest źle uwarunkowany i numpy nie potrafi go rozwiązać metodą LU.
+        # W takim przypadku wstawiamy wektor zer.
+        coeffs = np.zeros(m + 1) 
 
+    # --- KROK 3: Zwrócenie wyniku jako funkcji ---
+    # Definiujemy lokalnie nową funkcję, która po prostu wylicza wartość W(x) wstawiając policzone współczynniki c_k
     def approx_func(x):
         return sum(coeffs[i] * x**i for i in range(m + 1))
+        
     return approx_func
 
-# Metryki błędów (Zgodnie z Sekcją 2 sprawozdania)
+# ==========================================
+# 3. METRYKI BŁĘDÓW 
+# ==========================================
 def calculate_mse(func1, func2, x_vals):
+    """
+    Oblicza błąd średniokwadratowy (MSE) pomiędzy dwiema funkcjami.
+    """
+    # nan_to_num zabezpiecza przed wybuchem błędu do nieskończoności 
     y_approx = np.nan_to_num(func2(x_vals), nan=1e20, posinf=1e20, neginf=-1e20)
     return np.mean((func1(x_vals) - y_approx)**2)
 
 def calculate_max_error(func1, func2, x_vals):
+    """
+    Oblicza maksymalne odchylenie (błąd maksymalny E_max) pomiędzy dwiema funkcjami.
+    """
     y_approx = np.nan_to_num(func2(x_vals), nan=1e20, posinf=1e20, neginf=-1e20)
     return np.max(np.abs(func1(x_vals) - y_approx))
 
 
 # ==========================================
-# 4.1. NOWE, KLAROWNE NARZĘDZIA DO RYSOWANIA PANELI (Zastępuje stare "spaghetti")
+# 4. NOWE, KLAROWNE NARZĘDZIA DO RYSOWANIA PANELI
 # ==========================================
 def draw_single_isolated_panel(ax, n, m, color):
     """Rysuje jeden, pojedynczy wykres dla konkretnego n i konkretnego m"""
@@ -83,7 +134,9 @@ def draw_single_isolated_panel(ax, n, m, color):
     pf = poly_approximation(x_nodes, y_nodes, m)
     if pf:
         y_approx = pf(X_DENSE)
-        y_approx = np.clip(y_approx, -20, 50) # Zabezpieczenie przed Runge'em
+        # Obcinamy wykresy w osi Y, żeby jeden "wystrzał" wynikający ze złego uwarunkowania 
+        # nie spłaszczył nam całej osi i nie zepsuł rysunku.
+        y_approx = np.clip(y_approx, -20, 50) 
         ax.plot(X_DENSE, y_approx, color=color, label=f'Aproks. (m={m})', linewidth=2)
     else:
          ax.text(0, 15, "Zbyt mało węzłów!", ha='center', color='red', fontsize=12)
@@ -100,6 +153,7 @@ def generate_isolated_grid(n, m_list, filename):
     
     fig, axes = plt.subplots(rows, cols, figsize=(6 * cols, 5 * rows))
     
+    # Bezpieczeństwo iteracji po osiach
     if rows == 1: axes = axes.reshape(1, -1)
     
     colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22']
@@ -109,6 +163,7 @@ def generate_isolated_grid(n, m_list, filename):
         c = idx % cols
         draw_single_isolated_panel(axes[r, c], n, m, colors[idx % len(colors)])
         
+    # Usunięcie pustych, niewykorzystanych kratek w siatce
     for idx in range(len(m_list), rows * cols):
         r = idx // cols
         c = idx % cols
@@ -122,16 +177,18 @@ def generate_isolated_grid(n, m_list, filename):
 
 print(f"Zapisywanie wykresów do folderu: {SAVE_DIR} ...")
 
-# --- GENEROWANIE 4.1 ---
+# ==========================================
+# 5. GENEROWANIE WYKRESÓW - ZADANIA Z LABORATORIUM
+# ==========================================
+
+# --- ZADANIE 1: Zmiana stopnia m dla stałego n ---
 generate_isolated_grid(n=10, m_list=[2, 3, 4, 5, 6, 7], filename="fig_n10_stale.png")
 generate_isolated_grid(n=20, m_list=[2, 5, 8, 10, 15, 18], filename="fig_n20_stale.png")
 generate_isolated_grid(n=50, m_list=[5, 10, 15, 20, 30, 40], filename="fig_n50_stale.png")
 generate_isolated_grid(n=100, m_list=[10, 20, 30, 40, 60, 80], filename="fig_n100_stale.png")
 
 
-# ==========================================
-# 4.2. Wizualizacja dla STAŁEGO stopnia m (Sekcja 5 ze sprawozdania)
-# ==========================================
+# --- ZADANIE 2: Zmiana liczby węzłów n dla stałego m ---
 def plot_panel_fixed_m(ax, m, n_list, title_prefix=""):
     ax.plot(X_DENSE, f(X_DENSE), 'k--', label='Oryginalna', alpha=0.6)
     colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b']
@@ -160,9 +217,7 @@ plt.savefig(os.path.join(SAVE_DIR, "fig_stale_m.png"), bbox_inches='tight', dpi=
 plt.close()
 
 
-# ==========================================
-# 5. SPADEK BŁĘDU WRAZ Z ZAGĘSZCZANIEM WĘZŁÓW
-# ==========================================
+# --- ZADANIE 3: Wykres spadku błędu od zagęszczania węzłów ---
 def run_error_vs_nodes_plot():
     n_list = list(range(10, 105, 5))
     m_tests = [4, 8, 12]
@@ -195,9 +250,7 @@ def run_error_vs_nodes_plot():
 run_error_vs_nodes_plot()
 
 
-# ==========================================
-# 6. TABELA BŁĘDÓW I MAPY CIEPŁA (Sekcja 6)
-# ==========================================
+# --- ZADANIE 4: Generowanie Map Ciepła i Tabeli ---
 def generate_heatmaps_and_table():
     n_values = list(range(10, 105, 10))
     m_values = list(range(2, 41, 4))
@@ -216,6 +269,7 @@ def generate_heatmaps_and_table():
                     mse = calculate_mse(f, pf, X_DENSE)
                     max_err = calculate_max_error(f, pf, X_DENSE)
                     
+                    # Zabezpieczenie wizualne - ucinamy ogromne błędy żeby nie psuły kolorów mapy
                     mse_results[i, j] = max(1e-4, min(mse, 1e12))
                     max_results[i, j] = max(1e-4, min(max_err, 1e12))
                     
@@ -244,6 +298,7 @@ def generate_heatmaps_and_table():
     plt.savefig(os.path.join(SAVE_DIR, "heatmap_max.png"), bbox_inches='tight', dpi=150)
     plt.close()
 
+    # Zapis wybranych danych do CSV, dla dowodu w sprawozdaniu
     df = pd.DataFrame(table_data)
     df['MSE'] = df['MSE'].map('{:.3e}'.format)
     df['E_max'] = df['E_max'].map('{:.3e}'.format)
@@ -252,9 +307,7 @@ def generate_heatmaps_and_table():
 generate_heatmaps_and_table()
 
 
-# ==========================================
-# 7. WNIOSKI SPECJALNE: NAJLEPSZE DOPASOWANIE (Sekcja 7)
-# ==========================================
+# --- DODATEK: Rysowanie wariantu optymalnego ---
 def best_fit_plot():
     n = 51
     m = 20
