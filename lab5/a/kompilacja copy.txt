@@ -1,0 +1,16 @@
+=============================================================
+INSTRUKCJA URUCHOMIENIA I KOMPILACJI ZADANIA 4a 
+Autor: Katarzyna Piskorz
+=============================================================
+
+1. WYMAGANIA WSTĘPNE
+Aby poprawnie uruchomić kod i wygenerować sprawozdanie, wymagane jest posiadanie:
+- Zainstalowanego interpretera Python (wersja 3.x, np. 3.14+).
+- Zainstalowanych bibliotek Pythona: `numpy` `matplotlib` `seaborn` `pandas` 
+
+2. URUCHOMIENIE KODU (GENEROWANIE DANYCH I WYKRESÓW)
+- Skrypt obliczeniowy znajduje się w głównym pliku Pythona (np. `main1.py`).
+- Aby go uruchomić, otwórz terminal w folderze z projektem i wpisz komendę:
+  python main1.py
+- Po uruchomieniu skrypt automatycznie:
+  a) Wygeneruje i zapisze w folderze wykresy porównawcze w formacie .png .
