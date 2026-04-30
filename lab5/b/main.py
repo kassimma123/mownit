@@ -1,20 +1,18 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
-import pandas as pd
-import warnings
 import os
+import warnings
 
 warnings.filterwarnings('ignore')
 plt.style.use('seaborn-v0_8-whitegrid')
-plt.rcParams['font.size'] = 11
+plt.rcParams['font.size'] = 12
 
-# ==========================================
-# 1. PARAMETRY I FUNKCJA
-# ==========================================
+# dane do zadania
 m_param = 5.0
 k_param = 0.5
 INTERVAL = (-5.0, 5.0)
+L = INTERVAL[1] - INTERVAL[0] # Długość przedziału = 10
 X_DENSE = np.linspace(INTERVAL[0], INTERVAL[1], 1000)
 SAVE_DIR = "wykresy_trygonometryczna"
 
@@ -22,259 +20,302 @@ if not os.path.exists(SAVE_DIR):
     os.makedirs(SAVE_DIR)
 
 def f(x):
+    # funkcja z zadania
     return x**2 - m_param * np.cos((np.pi * x) / k_param)
 
-def get_nodes(n, include_endpoint=True):
-    # Generowanie węzłów z lub bez prawego krańca przedziału
-    x = np.linspace(INTERVAL[0], INTERVAL[1], n, endpoint=include_endpoint)
+def get_nodes(n, include_endpoint=False):
+    x = np.linspace(INTERVAL[0], INTERVAL[1], n, endpoint=True)
+    if not include_endpoint:
+        x = x[:-1]
     return x, f(x)
 
-# ==========================================
-# 2. SILNIK APROKSYMACJI TRYG. (MACIERZ GRAMA)
-# ==========================================
+# algorytm aproksymacji (z uzyciem macierzy Grama)
 def trig_approximation(x_nodes, y_nodes, m):
     n = len(x_nodes)
-    if n <= 2 * m: # Warunek: n > 2m (lub n >= 2m+1)
-        return None
+    if n < 2 * m + 1:
+        return None, None
 
-    # Mapowanie [-5, 5] na [0, pi] (półokres - omija zjawisko Gibbsa na brzegach)
-    v_nodes = np.pi * (x_nodes - INTERVAL[0]) / (INTERVAL[1] - INTERVAL[0])
+    # transformacja na przedzial [-pi, pi] zeby uniknac zjawiska Gibbsa na brzegach
+    v_nodes = 2 * np.pi * (x_nodes - INTERVAL[0]) / L - np.pi
 
-    # Baza trygonometryczna: [1, cos(v), sin(v), cos(2v), sin(2v), ...]
-    B = [np.ones_like(v_nodes)]
+    B = [np.ones_like(v_nodes) / np.sqrt(2)]
     for k in range(1, m + 1):
         B.append(np.cos(k * v_nodes))
         B.append(np.sin(k * v_nodes))
     
     B = np.column_stack(B)
     
-    # Macierz Grama i wektor wyrazów wolnych
     G = B.T @ B
     b = B.T @ y_nodes
 
     try:
-        # Rozwiązanie układu metodą rozkładu LU
+        # rozwiazanie G * c = b
         coeffs = np.linalg.solve(G, b)
     except np.linalg.LinAlgError:
-        return None
+        return None, None
 
     def approx_func(x):
-        v = np.pi * (x - INTERVAL[0]) / (INTERVAL[1] - INTERVAL[0])
-        res = coeffs[0]
+        v = 2 * np.pi * (x - INTERVAL[0]) / L - np.pi
+        res = coeffs[0] / np.sqrt(2)
         idx = 1
         for k in range(1, m + 1):
             res += coeffs[idx] * np.cos(k * v) + coeffs[idx+1] * np.sin(k * v)
             idx += 2
         return res
 
-    return approx_func
+    return approx_func, np.linalg.cond(G)
 
-def calculate_mse(func1, func2, x_vals):
-    y_approx = np.nan_to_num(func2(x_vals), nan=1e10, posinf=1e10, neginf=-1e10)
-    return np.mean((func1(x_vals) - y_approx)**2)
+# funkcje do rysowania wykresow do sprawozdania
 
-def calculate_max_error(func1, func2, x_vals):
-    y_approx = np.nan_to_num(func2(x_vals), nan=1e10, posinf=1e10, neginf=-1e10)
-    return np.max(np.abs(func1(x_vals) - y_approx))
-
-# ==========================================
-# 3. ANALIZA: WĘZEŁ KOŃCOWY
-# ==========================================
-def plot_endpoint_comparison():
-    n, m = 45, 20
+def plot_1_interpolation_comparison():
+    # rysuje wykres 1 (przypadek n = 2m+1)
+    n, m = 22, 10
+    
     x_inc, y_inc = get_nodes(n, include_endpoint=True)
     x_exc, y_exc = get_nodes(n, include_endpoint=False)
     
-    approx_inc = trig_approximation(x_inc, y_inc, m)
-    approx_exc = trig_approximation(x_exc, y_exc, m)
+    approx_inc, cond_inc = trig_approximation(x_inc, y_inc, m)
+    approx_exc, cond_exc = trig_approximation(x_exc, y_exc, m)
     
-    fig, ax = plt.subplots(1, 2, figsize=(14, 5))
+    fig, ax = plt.subplots(1, 2, figsize=(14, 6))
     
-    ax[0].plot(X_DENSE, f(X_DENSE), 'k--', alpha=0.3)
-    ax[0].scatter(x_inc, y_inc, c='red', s=20, label='Węzły')
+    # Wykres 1: Z węzłem końcowym
+    ax[0].plot(X_DENSE, f(X_DENSE), 'k--', alpha=0.5, label='Oryginał f(x)')
+    ax[0].scatter(x_inc, y_inc, c='red', s=40, zorder=5, label=f'Węzły (n={n})')
     if approx_inc: ax[0].plot(X_DENSE, approx_inc(X_DENSE), 'r', label="Aproksymacja")
-    ax[0].set_title(f"Z węzłem końcowym x=5 (n={n})")
-    ax[0].legend()
+    ax[0].set_title(f"Z WĘZŁEM x=5\nMacierz układu równań bliska osobliwości (cond={cond_inc:.1e})", color='darkred')
+    ax[0].legend(loc='lower center')
+    ax[0].set_ylim(-10, 35)
     
-    ax[1].plot(X_DENSE, f(X_DENSE), 'k--', alpha=0.3)
-    ax[1].scatter(x_exc, y_exc, c='blue', s=20, label='Węzły')
+    # Wykres 2: BEZ węzła końcowego
+    ax[1].plot(X_DENSE, f(X_DENSE), 'k--', alpha=0.5, label='Oryginał f(x)')
+    ax[1].scatter(x_exc, y_exc, c='blue', s=40, zorder=5, label=f'Węzły (n={n})')
     if approx_exc: ax[1].plot(X_DENSE, approx_exc(X_DENSE), 'b', label="Aproksymacja")
-    ax[1].set_title(f"Bez węzła końcowego x=5 (n={n})")
-    ax[1].legend()
+    ax[1].set_title(f"BEZ WĘZŁA x=5\nIdealna dyskretna ortogonalność (cond={cond_exc:.1f})", color='darkblue')
+    ax[1].legend(loc='lower center')
+    ax[1].set_ylim(-10, 35)
     
+    plt.suptitle("Etap 1: Warunek rozwiązalności układu równań (Interpolacja n=21, m=10)", fontsize=14, y=1.02)
     plt.tight_layout()
-    plt.savefig(os.path.join(SAVE_DIR, "trig_wezel_koncowy.png"), dpi=150)
+    plt.savefig(os.path.join(SAVE_DIR, "1_interpolacja_porownanie.png"), bbox_inches='tight', dpi=150)
     plt.close()
 
-# ==========================================
-# 4. MOMENT DETEKCJI I ZAŁAMANIA
-# ==========================================
-def draw_panel(ax, n, m, color):
-    x_n, y_n = get_nodes(n)
-    ax.plot(X_DENSE, f(X_DENSE), 'k--', alpha=0.4)
-    # Dynamiczny rozmiar punktów, by się nie zlewały
-    ax.scatter(x_n, y_n, color='black', s=max(3, 100//n), alpha=0.5, zorder=5)
+def plot_2_error_comparison():
+    # wykres z bledami na osi y w skali logarytmicznej
+    m = 5
+    n_vals = np.arange(12, 40)
+    err_inc, err_exc = [], []
     
-    pf = trig_approximation(x_n, y_n, m)
-    if pf:
-        y_app = np.clip(pf(X_DENSE), -20, 50)
-        ax.plot(X_DENSE, y_app, color=color, linewidth=2, label=f'm={m}')
-    else:
-        ax.text(0, 15, "Brak spełnienia\n n >= 2m+1", ha='center', color='red')
-        
-    ax.set_ylim(-10, 40)
-    ax.set_title(f"Stopień m={m}")
-    ax.legend(loc='lower center')
-
-def generate_evolution(n, m_list, filename, title):
-    cols = 3
-    rows = (len(m_list) + cols - 1) // cols
-    fig, axes = plt.subplots(rows, cols, figsize=(6*cols, 4.5*rows))
-    axes = axes.flatten()
-    colors = sns.color_palette("husl", len(m_list))
+    for n in n_vals:
+        x_in, y_in = get_nodes(n, include_endpoint=True)
+        app_in, _ = trig_approximation(x_in, y_in, m)
+        err_inc.append(np.max(np.abs(f(X_DENSE) - app_in(X_DENSE))) if app_in else np.nan)
+            
+        x_ex, y_ex = get_nodes(n, include_endpoint=False)
+        app_ex, _ = trig_approximation(x_ex, y_ex, m)
+        err_exc.append(np.max(np.abs(f(X_DENSE) - app_ex(X_DENSE))) if app_ex else np.nan)
+            
+    plt.figure(figsize=(10, 6))
+    plt.plot(n_vals, err_inc, 'r-o', label='Z WĘZŁEM (endpoint=True)')
+    plt.plot(n_vals, err_exc, 'b-o', label='BEZ WĘZŁA (endpoint=False)')
     
-    for i, m in enumerate(m_list):
-        draw_panel(axes[i], n, m, colors[i])
-        
-    plt.suptitle(title, fontsize=16)
-    plt.tight_layout()
-    plt.savefig(os.path.join(SAVE_DIR, filename), dpi=150)
+    plt.yscale('log')
+    plt.xlabel('Liczba węzłów (n)')
+    plt.ylabel('Błąd maksymalny (skala logarytmiczna)')
+    plt.title(f'Etap 2: Błąd aproksymacji (m={m})\nDla zbyt małego stopnia bazy oba modele dają ogromny błąd, a wariant bez węzła jest nieznacznie gorszy.', fontsize=13)
+    plt.legend()
+    plt.grid(True, which="both", ls="-", alpha=0.2)
+    plt.savefig(os.path.join(SAVE_DIR, "2_blad_porownanie.png"), bbox_inches='tight', dpi=150)
     plt.close()
 
-# ==========================================
-# 5. MAPY CIEPŁA Z DANYMI (Ścisła Skala)
-# ==========================================
-def plot_heatmaps():
-    n_vals = list(range(10, 105, 10))
+def plot_2b_error_comparison_proper_m():
+    # wykres pokazujacy udana probe przy prawidlowym m=12
+    m = 12
+    n_vals = np.arange(26, 60)
+    err_inc, err_exc = [], []
+    
+    for n in n_vals:
+        x_in, y_in = get_nodes(n, include_endpoint=True)
+        app_in, _ = trig_approximation(x_in, y_in, m)
+        err_inc.append(np.max(np.abs(f(X_DENSE) - app_in(X_DENSE))) if app_in else np.nan)
+            
+        x_ex, y_ex = get_nodes(n, include_endpoint=False)
+        app_ex, _ = trig_approximation(x_ex, y_ex, m)
+        err_exc.append(np.max(np.abs(f(X_DENSE) - app_ex(X_DENSE))) if app_ex else np.nan)
+            
+    plt.figure(figsize=(10, 6))
+    plt.plot(n_vals, err_inc, 'r-o', label='Z WĘZŁEM (endpoint=True)')
+    plt.plot(n_vals, err_exc, 'b-o', label='BEZ WĘZŁA (endpoint=False)')
+    
+    plt.yscale('log')
+    plt.xlabel('Liczba węzłów (n)')
+    plt.ylabel('Błąd maksymalny (skala logarytmiczna)')
+    plt.title(f'Etap 2b: Błąd aproksymacji po pokonaniu underfittingu (m={m})\nBłąd drastycznie spada, a ortogonalna siatka (bez węzła) staje się docelowo lepsza.', fontsize=13)
+    plt.legend()
+    plt.grid(True, which="both", ls="-", alpha=0.2)
+    plt.savefig(os.path.join(SAVE_DIR, "2b_blad_porownanie_m12.png"), bbox_inches='tight', dpi=150)
+    plt.close()
+
+def plot_3_extrema_threshold():
+    # pokazujemy jak dla m=10 nagle model lapie wszystkie ekstrema
+    n = 31
+    x_nodes, y_nodes = get_nodes(n, include_endpoint=False)
+    
+    fig, ax = plt.subplots(1, 2, figsize=(14, 6))
+    
+    m1 = 9
+    app1, _ = trig_approximation(x_nodes, y_nodes, m1)
+    ax[0].plot(X_DENSE, f(X_DENSE), 'k--', alpha=0.5, label='Oryginał z falą cos(2πx)')
+    ax[0].scatter(x_nodes, y_nodes, c='black', s=20, label=f'Węzły (n={n})')
+    if app1: ax[0].plot(X_DENSE, app1(X_DENSE), 'orange', linewidth=2, label=f'Aproksymacja m={m1}')
+    ax[0].set_title(f"Zbyt niski stopień m={m1}\n(Brak detekcji wysokiej częstotliwości)")
+    ax[0].legend(loc='lower center')
+    ax[0].set_ylim(-10, 35)
+    
+    m2 = 10
+    app2, _ = trig_approximation(x_nodes, y_nodes, m2)
+    ax[1].plot(X_DENSE, f(X_DENSE), 'k--', alpha=0.5, label='Oryginał z falą cos(2πx)')
+    ax[1].scatter(x_nodes, y_nodes, c='black', s=20, label=f'Węzły (n={n})')
+    if app2: ax[1].plot(X_DENSE, app2(X_DENSE), 'green', linewidth=2, label=f'Aproksymacja m={m2}')
+    ax[1].set_title(f"Trafienie w dziesiątą harmonikę m={m2}\n(Idealne pokrycie oscylacji)")
+    ax[1].legend(loc='lower center')
+    ax[1].set_ylim(-10, 35)
+    
+    plt.suptitle("Etap 3a: Moment detekcji ekstremów (Granica to m=10 ze względu na częstotliwość fali)", fontsize=14, y=1.02)
+    plt.tight_layout()
+    plt.savefig(os.path.join(SAVE_DIR, "3a_detekcja_prog.png"), bbox_inches='tight', dpi=150)
+    plt.close()
+
+def plot_4_extrema_with_without():
+    # jak zachowuje sie przy optymalnym m=10 dla z wezlem i bez
+    m = 10 
+    n = 31 # Bierzemy n=31, gdzie różnica błędu brzegowego jest największa i wyraźnie widoczna
+    
+    fig, ax = plt.subplots(1, 2, figsize=(14, 6))
+    
+    # Lewa strona - Z WĘZŁEM
+    x_in, y_in = get_nodes(n, include_endpoint=True)
+    app_in, _ = trig_approximation(x_in, y_in, m)
+    ax[0].plot(X_DENSE, f(X_DENSE), 'k--', alpha=0.5, label='Oryginał')
+    ax[0].scatter(x_in, y_in, c='red', s=40, label=f'Węzły (n={len(x_in)})', zorder=5)
+    if app_in: 
+        err_in = np.max(np.abs(f(X_DENSE) - app_in(X_DENSE)))
+        ax[0].plot(X_DENSE, app_in(X_DENSE), 'r', linewidth=2, label=f'Aproksymacja m={m}')
+        ax[0].set_title(f"Z WĘZŁEM x=5\nZaburzenia widoczne na krańcach (Max błąd: {err_in:.2f})", color='darkred')
+    
+    ax[0].legend(loc='lower left')
+    # Zbliżenie na prawy kraniec, żeby pokazać "telepanie"
+    ax[0].set_xlim(3.0, 5.2)
+    ax[0].set_ylim(8, 28)
+    
+    # Prawa strona - BEZ WĘZŁA
+    x_ex, y_ex = get_nodes(n, include_endpoint=False)
+    app_ex, _ = trig_approximation(x_ex, y_ex, m)
+    ax[1].plot(X_DENSE, f(X_DENSE), 'k--', alpha=0.5, label='Oryginał')
+    ax[1].scatter(x_ex, y_ex, c='blue', s=40, label=f'Węzły (n={len(x_ex)})', zorder=5)
+    if app_ex: 
+        err_ex = np.max(np.abs(f(X_DENSE) - app_ex(X_DENSE)))
+        ax[1].plot(X_DENSE, app_ex(X_DENSE), 'b', linewidth=2, label=f'Aproksymacja m={m}')
+        ax[1].set_title(f"BEZ WĘZŁA x=5\nKrzywa stabilniejsza na krańcach (Max błąd: {err_ex:.2f})", color='darkblue')
+    
+    ax[1].legend(loc='lower left')
+    # Zbliżenie na prawy kraniec
+    ax[1].set_xlim(3.0, 5.2)
+    ax[1].set_ylim(8, 28)
+    
+    plt.suptitle("Etap 3b: Zbliżenie na prawy kraniec (Warianty nadokreślone n=31)", fontsize=14, y=1.02)
+    plt.tight_layout()
+    plt.savefig(os.path.join(SAVE_DIR, "3b_detekcja_porownanie.png"), bbox_inches='tight', dpi=150)
+    plt.close()
+
+def plot_5_n_impact_comparison():
+    # rosnace n przy stalym m=10
+    m = 10
+    n_list = [22, 30, 50, 80]
+    
+    fig, ax = plt.subplots(1, 2, figsize=(16, 6))
+    colors = ['#d62728', '#ff7f0e', '#2ca02c', '#1f77b4']
+    
+    # Lewy wykres: Z węzłem
+    ax[0].plot(X_DENSE, f(X_DENSE), 'k--', alpha=0.4, label='Oryginał', linewidth=3)
+    for i, n in enumerate(n_list):
+        x_in, y_in = get_nodes(n, include_endpoint=True)
+        app, _ = trig_approximation(x_in, y_in, m)
+        if app: ax[0].plot(X_DENSE, app(X_DENSE), color=colors[i], label=f'n={n}', alpha=0.8, linewidth=1.5)
+    ax[0].set_title("Z WĘZŁEM\nDla n > 2m+1 metoda najmniejszych kwadratów świetnie sobie radzi", color='darkred')
+    ax[0].legend(loc='lower center', ncol=2)
+    ax[0].set_ylim(-10, 35)
+
+    # Prawy wykres: BEZ węzła
+    ax[1].plot(X_DENSE, f(X_DENSE), 'k--', alpha=0.4, label='Oryginał', linewidth=3)
+    for i, n in enumerate(n_list):
+        x_ex, y_ex = get_nodes(n, include_endpoint=False)
+        app, _ = trig_approximation(x_ex, y_ex, m)
+        if app: ax[1].plot(X_DENSE, app(X_DENSE), color=colors[i], label=f'n={n}', alpha=0.8, linewidth=1.5)
+    ax[1].set_title("BEZ WĘZŁA\nRównież stabilna od samego początku, różnice są marginalne", color='darkblue')
+    ax[1].legend(loc='lower center', ncol=2)
+    ax[1].set_ylim(-10, 35)
+    
+    plt.suptitle(f"Etap 4: Wpływ zagęszczania siatki n przy stałym stopniu m={m}", fontsize=14, y=1.02)
+    plt.tight_layout()
+    plt.savefig(os.path.join(SAVE_DIR, "4_wplyw_n_porownanie.png"), bbox_inches='tight', dpi=150)
+    plt.close()
+
+def plot_6_heatmaps_comparison():
+    # mapy ciepla dla n i m
+    # n bierzemy co 5 zeby bylo szybciej
+    n_vals = list(range(12, 105, 5))
     m_vals = list(range(2, 41, 2))
     
-    mse_res = np.full((len(n_vals), len(m_vals)), np.nan)
-    max_res = np.full((len(n_vals), len(m_vals)), np.nan)
+    err_inc = np.full((len(n_vals), len(m_vals)), np.nan)
+    err_exc = np.full((len(n_vals), len(m_vals)), np.nan)
 
     for i, n in enumerate(n_vals):
-        x_n, y_n = get_nodes(n)
-        for j, m in enumerate(m_vals):
-            if n > 2*m:
-                pf = trig_approximation(x_n, y_n, m)
-                if pf:
-                    mse_res[i, j] = calculate_mse(f, pf, X_DENSE)
-                    max_res[i, j] = calculate_max_error(f, pf, X_DENSE)
-
-    # Obcięcie skali vmin/vmax by uwydatnić drobne różnice i "wybuch" układu
-    plt.figure(figsize=(16, 9))
-    sns.heatmap(mse_res, xticklabels=m_vals, yticklabels=n_vals, annot=True, 
-                fmt=".1e", annot_kws={"size": 7}, cmap="viridis_r", 
-                norm=plt.matplotlib.colors.LogNorm(vmin=1e-1, vmax=1e2))
-    plt.title("Mapa Ciepła MSE (Skala uwydatniająca próg uwarunkowania)")
-    plt.xlabel("Stopień szeregu (m)")
-    plt.ylabel("Liczba węzłów (n)")
-    plt.savefig(os.path.join(SAVE_DIR, "heatmap_trig_mse.png"), bbox_inches='tight', dpi=150)
-    plt.close()
-
-# ==========================================
-# 6. NAJLEPSZE DOPASOWANIE
-# ==========================================
-def plot_best_fit():
-    n, m = 100, 20
-    x_n, y_n = get_nodes(n)
-    pf = trig_approximation(x_n, y_n, m)
-    
-    plt.figure(figsize=(10, 6))
-    plt.plot(X_DENSE, f(X_DENSE), 'k--', alpha=0.5, label="Oryginał")
-    plt.scatter(x_n, y_n, c='black', s=5, alpha=0.5, label=f"Węzły (n={n})")
-    
-    if pf:
-        mse = calculate_mse(f, pf, X_DENSE)
-        plt.plot(X_DENSE, pf(X_DENSE), 'g-', linewidth=2, label=f"Aproks. (m={m})")
-        plt.text(-4.8, 30, f"MSE: {mse:.4e}\nCzęstotliwość funkcji bazowej ulega\nidealnemu zrównaniu z 20-tą\nharmoniczną bazy trygonometrycznej.", 
-                 bbox=dict(facecolor='white', alpha=0.9))
-                 
-    plt.title(f"Aproksymacja optymalna: n={n}, m={m}")
-    plt.ylim(-10, 40)
-    plt.legend()
-    plt.savefig(os.path.join(SAVE_DIR, "trig_najlepsze.png"), dpi=150)
-    plt.close()
-
-# ==========================================
-# WIZUALIZACJA DLA STAŁEGO STOPNIA m (Zmienne n)
-# ==========================================
-def plot_fixed_m_trig():
-    m_values = [5, 10, 15, 20]
-    # Zgodnie z warunkiem n >= 2m+1, n musi być odpowiednio duże
-    n_lists = [
-        [12, 15, 20, 50],    # dla m=5  (min n=11)
-        [22, 30, 50, 70],    # dla m=10 (min n=21)
-        [32, 40, 60, 90],    # dla m=15 (min n=31)
-        [42, 50, 80, 100]    # dla m=20 (min n=41)
-    ]
-    
-    fig, axes = plt.subplots(2, 2, figsize=(14, 10))
-    colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728']
-    
-    for idx, m in enumerate(m_values):
-        ax = axes[idx // 2, idx % 2]
-        ax.plot(X_DENSE, f(X_DENSE), 'k--', label='Oryginalna', alpha=0.5)
+        x_in, y_in = get_nodes(n, include_endpoint=True)
+        x_ex, y_ex = get_nodes(n, include_endpoint=False)
         
-        for n_idx, n in enumerate(n_lists[idx]):
-            x_nodes, y_nodes = get_nodes(n, include_endpoint=True)
-            if n_idx == 0:
-                ax.scatter(x_nodes, y_nodes, color='black', s=10, alpha=0.5, label=f'Węzły (min)')
-            
-            pf = trig_approximation(x_nodes, y_nodes, m)
-            if pf:
-                ax.plot(X_DENSE, pf(X_DENSE), color=colors[n_idx], label=f'n={n}', linewidth=1.5)
-                
-        ax.set_ylim(-10, 40)
-        ax.set_title(f"Stopień m={m}")
-        ax.legend(loc='lower center', fontsize=9, ncol=2)
+        for j, m in enumerate(m_vals):
+            if len(x_in) >= 2*m + 1:
+                app_in, _ = trig_approximation(x_in, y_in, m)
+                if app_in:
+                    err = np.max(np.abs(f(X_DENSE) - np.nan_to_num(app_in(X_DENSE), nan=1e10)))
+                    err_inc[i, j] = err if err < 1e5 else np.nan
+                    
+            if len(x_ex) >= 2*m + 1:
+                app_ex, _ = trig_approximation(x_ex, y_ex, m)
+                if app_ex:
+                    err = np.max(np.abs(f(X_DENSE) - np.nan_to_num(app_ex(X_DENSE), nan=1e10)))
+                    err_exc[i, j] = err if err < 1e5 else np.nan
 
-    plt.suptitle("Wpływ zagęszczania siatki (n) przy stałym stopniu (m)", fontsize=16)
+    fig, axes = plt.subplots(1, 2, figsize=(22, 10))
+    
+    # Rozszerzona skala od 1e-4 do 1e2 by uwydatnić subtelne różnice
+    norm = plt.matplotlib.colors.LogNorm(vmin=1e-3, vmax=1e2)
+    
+    sns.heatmap(err_inc, xticklabels=m_vals, yticklabels=n_vals, annot=True, 
+                fmt=".1e", annot_kws={"size": 6}, cmap="turbo", norm=norm, ax=axes[0])
+    axes[0].set_title("Błąd Maksymalny - Z WĘZŁEM\nZnacznie gorsza precyzja, strefy dużego błędu", color='darkred', fontsize=14)
+    axes[0].set_xlabel("Stopień szeregu (m)", fontsize=12)
+    axes[0].set_ylabel("Liczba węzłów (n)", fontsize=12)
+
+    sns.heatmap(err_exc, xticklabels=m_vals, yticklabels=n_vals, annot=True, 
+                fmt=".1e", annot_kws={"size": 6}, cmap="turbo", norm=norm, ax=axes[1])
+    axes[1].set_title("Błąd Maksymalny - BEZ WĘZŁA\nStabilny spadek błędu do 10^-3, duża precyzja", color='darkblue', fontsize=14)
+    axes[1].set_xlabel("Stopień szeregu (m)", fontsize=12)
+    axes[1].set_ylabel("Liczba węzłów (n)", fontsize=12)
+
+    plt.suptitle("Etap 5: Gęsta Mapa Ciepła Błędu Maksymalnego (Z Węzłem vs Bez Węzła)", fontsize=18, y=1.03)
     plt.tight_layout()
-    plt.savefig(os.path.join(SAVE_DIR, "trig_stale_m.png"), dpi=150)
+    plt.savefig(os.path.join(SAVE_DIR, "5_mapy_ciepla_porownanie.png"), bbox_inches='tight', dpi=150)
     plt.close()
 
 if __name__ == "__main__":
-    print("Start...")
-    plot_endpoint_comparison()
-    
-    # Krokowe wyłapywanie momentu działania (Rygorystyczny warunek m <= (n-1)//2)
-    
-    # n=7  -> max m=3
-    generate_evolution(n=7, m_list=[1, 2, 3], filename="trig_detekcja_n7.png", title="Zbyt mało węzłów (max m=3) dla n=7")
-    
-    # n=10 -> max m=4
-    generate_evolution(n=10, m_list=[1, 2, 3, 4], filename="trig_detekcja_n10.png", title="Osiąganie granicy uwarunkowania dla n=10")
-    
-    # n=12 -> max m=5
-    generate_evolution(n=12, m_list=[1, 2, 3, 4, 5], filename="trig_detekcja_n12.png", title="Próby detekcji fali dla n=12")
-    
-    # n=15 -> max m=7
-    generate_evolution(n=15, m_list=[2, 3, 4, 5, 6, 7], filename="trig_detekcja_n15.png", title="Stopniowa detekcja do max m=7 dla n=15")
-    
-    # n=20 -> max m=9
-    generate_evolution(n=20, m_list=[4, 5, 6, 7, 8, 9], filename="trig_detekcja_n20.png", title="Ewolucja dopasowania do max m=9 dla n=20")
-    
-    # n=30 -> max m=14
-    generate_evolution(n=30, m_list=[8, 10, 11, 12, 13, 14], filename="trig_detekcja_n30.png", title="Przed detekcją (max m=14) dla n=30")
-    
-    # n=40 -> max m=19 (Tu był błąd w oryginalnej liście)
-    generate_evolution(n=40, m_list=[14, 15, 16, 17, 18, 19], filename="trig_detekcja_n40.png", title="Zbliżanie do pełnej detekcji przy n=40 (max m=19)")
-    
-    # n=50 -> max m=24
-    generate_evolution(n=50, m_list=[15, 18, 20, 22, 23, 24], filename="trig_detekcja_n50.png", title="Pełna stabilność ekstremów dla n=50")
-    
-    # n=60 -> max m=29 (Poprawione)
-    generate_evolution(n=60, m_list=[20, 22, 24, 26, 28, 29], filename="trig_detekcja_n60.png", title="Wysoka precyzja lokalizacji przy n=60 (max m=29)")
-    
-    # n=80 -> max m=39 (Poprawione)
-    generate_evolution(n=80, m_list=[25, 30, 35, 37, 38, 39], filename="trig_detekcja_n80.png", title="Bardzo dobra lokalizacja przy n=80 (max m=39)")
-    
-    # n=90 -> max m=44 (Poprawione)
-    generate_evolution(n=90, m_list=[30, 35, 40, 42, 43, 44], filename="trig_detekcja_n90.png", title="Praktyczna granica dla n=90 (max m=44)")
-    
-    # n=100 -> max m=49
-    generate_evolution(n=100, m_list=[20, 30, 40, 45, 48, 49], filename="trig_granica_n100.png", title="Granica numeryczna dla gęstej siatki n=100")
-    plot_heatmaps()
-    plot_best_fit()
-    plot_fixed_m_trig()
-    print("Zrobione!")
+    print("Generowanie pełnego porównania z/bez węzła...")
+    plot_1_interpolation_comparison()
+    plot_2_error_comparison()
+    plot_2b_error_comparison_proper_m()
+    plot_3_extrema_threshold()
+    plot_4_extrema_with_without()
+    plot_5_n_impact_comparison()
+    plot_6_heatmaps_comparison()
+    print("Zakończono. Pliki w folderze", SAVE_DIR)

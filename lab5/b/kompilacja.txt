@@ -1,0 +1,16 @@
+Instrukcja uruchomienia programu (Aproksymacja Trygonometryczna):
+
+1. Wymagania:
+   Zainstalowany Python (wersja 3.8 lub nowsza).
+   Program wymaga kilku standardowych bibliotek do obliczeń numerycznych i rysowania wykresów (numpy, matplotlib, seaborn)
+
+2. Instalacja bibliotek:
+   W terminalu w folderze z projektem i wpisz:
+   pip install numpy matplotlib seaborn
+
+3. Uruchomienie:
+   Aby wygenerować wszystkie wykresy do sprawozdania, wpisz w terminalu:
+   python3 main.py
+
+4. Wyniki:
+   Program wykona obliczenia i stworzy nowy folder o nazwie "wykresy_trygonometryczna" w tym samym katalogu.

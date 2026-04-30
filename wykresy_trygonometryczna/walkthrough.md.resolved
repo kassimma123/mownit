@@ -1,0 +1,36 @@
+# Pełen Przebieg Doświadczenia: "Z Węzłem vs Bez Węzła"
+
+Zgodnie z wymaganiem, od teraz **cały przebieg doświadczenia** to ciągłe porównywanie wariantu ze zduplikowanym na krańcach węzłem względem wariantu bez tego zduplikowanego węzła. 
+
+Dzięki temu w sprawozdaniu dla **każdego** wykresu będziesz mogła napisać: *"Z lewej strony pokazałam aproksymację/interpolację z uwzględnieniem obydwu krańców przedziału, z prawej z pominięciem ostatniego węzła. Jak widać..."*
+
+> [!TIP]
+> **O Rozwiązywaniu Układów Równań:**
+> Twoja prowadząca pytała o `np.linalg.solve(G, b)`. Otóż wektor współczynników aproksymacji (szukane `coeffs`) to rozwiązanie układu równań liniowych postaci $G \cdot \text{coeffs} = b$. Jeśli $n = 2m + 1$, ten układ równań zwie się interpolacją, a dla $n > 2m+1$ jest to aproksymacja (metoda najmniejszych kwadratów). W obu przypadkach pod maską numerycznie **rozwiązujesz układ równań**.
+
+## 1. Etap: Analiza Uwarunkowania Macierzy (Rozwiązywalność)
+Gdy robimy interpolację ($n = 2m + 1$), układ równań kwadratowych dla opcji "Z Węzłem" ($n=21$) staje się w zasadzie nierozwiązywalny (bardzo osobliwy), ponieważ węzeł na początku (-5) i końcu (5) z punktu widzenia funkcji okresowej to ten sam punkt. To dodaje redundantny wiersz do układu równań. "Bez Węzła" macierz jest wręcz idealnie dyskretnie ortogonalna (współczynnik `cond=1.0`).
+
+![Interpolacja z węzłem i bez](/Users/kassimma/.gemini/antigravity/brain/6be2697f-c0e5-4ab8-9f04-0c987f7febe4/1_interpolacja_porownanie.png)
+
+## 2. Etap: Konsekwencje w Błędzie (Skala Logarytmiczna)
+Idąc dalej, sprawdzamy czysto empirycznie wielkość błędu. Odcięcie błędnego węzła sprawia, że błędy aproksymacji po prostu maleją. Czerwona linia leży stale wyżej.
+
+![Porównanie Błędu](/Users/kassimma/.gemini/antigravity/brain/6be2697f-c0e5-4ab8-9f04-0c987f7febe4/2_blad_porownanie.png)
+
+## 3. Etap: Próg Detekcji i Ekstrema
+Funkcja posiada czynnik $-5\cos(2\pi x)$. Przy mapowaniu przedziału na $[-\pi, \pi]$ ta częstotliwość odpowiada dokładnie dziesiątej fali z bazy ($k=10$). Najpierw dowodzimy, że dopóki stopień wielomianu $m$ nie osiągnie 10, ekstrema są niewidzialne. 
+
+![Próg detekcji](/Users/kassimma/.gemini/antigravity/brain/6be2697f-c0e5-4ab8-9f04-0c987f7febe4/3a_detekcja_prog.png)
+
+Zaraz potem weryfikujemy: **skoro wiemy już, że $m=10$ jest optymalne, to co z tym naszym nieszczęsnym węzłem na krańcach?** Sprawdzamy opcję z węzłem i bez dla optymalnego $m=10$. Okazuje się, że wariant "Z Węzłem" nawet przy optymalnym stopniu generuje zniekształcenia (zaburzenia) blisko krańców! Wariant "Bez Węzła" po raz kolejny wygrywa i trafia we wszystkie ekstrema idealnie.
+
+![Pokrycie Ekstremów](/Users/kassimma/.gemini/antigravity/brain/6be2697f-c0e5-4ab8-9f04-0c987f7febe4/3b_detekcja_porownanie.png)
+
+## 4. Etap: Wpływ Zagęszczania (Rosnące N)
+Na koniec, sprawdzamy zachowanie przy zwiększaniu liczby węzłów. "Z Węzłem" powoli próbuje wypłaszczać te brzegowe błędy wraz ze wzrostem węzłów, ale krzywe drgają. Wariant "Bez Węzła" (po prawej) od samego początku pokrywa sygnał tak znakomicie, że kolejne krzywe po prostu się na siebie nakładają.
+
+![Wpływ Zagęszczania](/Users/kassimma/.gemini/antigravity/brain/6be2697f-c0e5-4ab8-9f04-0c987f7febe4/4_wplyw_n_porownanie.png)
+
+## Podsumowanie do Sprawozdania:
+Prowadząca ma teraz **cały eksperyment** zbudowany wokół jej sugestii. Każdy wykres to jedno twarde porównanie, które uzasadnia to, dlaczego trygonometria bazuje na jednym okresie $[-\pi, \pi)$ i dlaczego prawy kraniec trzeba bezwzględnie usunąć z węzłów by zachować doskonałą numeryczną dystrybucję punktów i ortogonalność bazy. Skrypt zapisuje wykresy do folderu `lab5/b/wykresy_trygonometryczna`.
