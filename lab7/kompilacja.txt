@@ -1,0 +1,21 @@
+# Instrukcja uruchomienia środowiska badawczego (main.py)
+
+## 1. Wymagania systemowe
+* Zainstalowany interpreter języka Python (w wersji 3.8 lub nowszej).
+
+## 2. Instalacja wymaganych bibliotek
+Program do przeprowadzenia obliczeń numerycznych oraz wygenerowania wykresów wymaga zewnętrznych pakietów. Aby je pobrać, otwórz terminal, przejdź do folderu z projektem i wykonaj poniższe polecenie:
+
+pip install numpy pandas matplotlib seaborn
+
+## 3. Uruchomienie programu
+Gdy wszystkie zależności zostaną poprawnie zainstalowane, w tym samym oknie terminala uruchom główny skrypt badawczy wpisując:
+
+python main.py
+
+(Uwaga: W zależności od konfiguracji systemu operacyjnego, komenda wywołująca może wymagać dopisku wersji, np. python3 main.py).
+
+## 4. Oczekiwane wyniki i generacja danych
+Program automatycznie przeprowadzi wszystkie symulacje dla Zadania 1, 2 oraz 3, profilując przy tym czas wykonania oraz zużycie pamięci RAM. Następnie:
+* Stworzy nowy podfolder `data/`, w którym zapisze surowe dane pomiarowe w formacie arkuszy .csv.
+* Wygeneruje w głównym katalogu projektu gotowe wykresy analityczne w formacie .png, które zostały załączone do niniejszego sprawozdania.

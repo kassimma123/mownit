@@ -190,7 +190,7 @@ def generate_plots():
         plt.plot(df_z1_f64['n'], df_z1_f64['error_max'], 's-', color='blue', label='float64')
         plt.yscale('log')
         plt.axhline(1.0, color='gray', linestyle='--', label='Błąd krytyczny = 1.0')
-        plt.xticks(df_z1_f32['n'][::2])
+        plt.xticks(np.arange(2, 21, 1))
         plt.xlabel('Rozmiar macierzy (n)')
         plt.ylabel('Błąd maksymalny ||x_zad - x_obl||')
         plt.title('Zadanie 1: Załamanie precyzji (Macierz źle uwarunkowana)')
@@ -204,7 +204,7 @@ def generate_plots():
         plt.figure(figsize=(8,4.5))
         plt.plot(df_z1_f64['n'], df_z1_f64['cond'], 'D-', color='purple', label='Wskaźnik uwarunkowania')
         plt.yscale('log')
-        plt.xticks(df_z1_f64['n'][::2])
+        plt.xticks(np.arange(2, 21, 1))
         plt.xlabel('Rozmiar macierzy (n)')
         plt.ylabel('cond(A) = ||A|| * ||A⁻¹||')
         plt.title('Zadanie 1: Złe uwarunkowanie macierzy')
@@ -300,7 +300,7 @@ def main():
     run_benchmark("Zadanie_1_Gauss", task_1_matrix, gauss, range(2, 21), precisions, track_cond=True)
     
     print("Rozpoczęto Zadanie 2...")
-    run_benchmark("Zadanie_2_Gauss", task_2_matrix, gauss, range(2, 151, 10), precisions, track_cond=True)
+    run_benchmark("Zadanie_2_Gauss", task_2_matrix, gauss, range(2, 151, 2), precisions, track_cond=True)
     
     print("Rozpoczęto Zadanie 3...")
     n_large = [10, 50, 100, 200, 300, 400, 500]
