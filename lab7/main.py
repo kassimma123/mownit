@@ -2,7 +2,6 @@ import numpy as np
 import pandas as pd
 import os
 import matplotlib.pyplot as plt
-import seaborn as sns
 import time
 import tracemalloc
 import random
@@ -22,6 +21,9 @@ def gauss(A, b, precision):
         A[[i, _max_i], :] = A[[_max_i, i], :]
         b[i], b[_max_i] = b[_max_i], b[i]
         
+        if A[i, i] == 0:
+            continue
+            
         b[i] /= A[i, i]
         A[i, :] /= A[i, i]
         
@@ -48,12 +50,15 @@ def thomas_memory(A_banded, b, precision):
     n = A.shape[0]
     
     # Eliminacja w przód
-    b[0] /= A[0, 1]
-    A[0, 2] /= A[0, 1]
-    A[0, 1] = 1.0
+    if A[0, 1] != 0:
+        b[0] /= A[0, 1]
+        A[0, 2] /= A[0, 1]
+        A[0, 1] = 1.0
     
     for i in range(1, n):
         factor = A[i, 1] - A[i, 0] * A[i-1, 2]
+        if factor == 0:
+            factor = 1e-15 # zapobieganie dzieleniu przez 0
         if i < n - 1:
             A[i, 2] /= factor
         b[i] = (b[i] - A[i, 0] * b[i-1]) / factor
@@ -77,7 +82,7 @@ def task_1_matrix(n, X, precision):
     for i in range(n):
         for j in range(n):
             if i == 0: A[i, j] = 1.0
-            else: A[i, j] = 1.0 / (i + 1 + j + 1 - 1) # i, j są indeksowane od 0
+            else: A[i, j] = 1.0 / (i + 1 + j + 1 - 1)
     b = A @ X
     return A, b 
 
@@ -95,9 +100,12 @@ def task_3_matrix_full(n, X, precision, k=5, m=4):
     """Zadanie 3: Macierz trójdiagonalna (wersja pełna n x n dla Gaussa)."""
     A = np.zeros((n, n), dtype=precision)
     for i in range(n):
-        A[i, i] = -m * (i + 1) - k
-        if i > 0: A[i, i - 1] = (i + 1) / m
-        if i < n - 1: A[i, i + 1] = (i + 1) / m # Zgodnie z symetrią podaną w treści
+        math_i = i + 1
+        A[i, i] = -m * math_i - k
+        if i < n - 1: 
+            A[i, i + 1] = math_i
+        if i > 0: 
+            A[i, i - 1] = m / math_i
     b = A @ X
     return A, b
 
@@ -106,9 +114,12 @@ def task_3_matrix_banded(n, X, precision, k=5, m=4):
     A_full, b = task_3_matrix_full(n, X, precision, k, m)
     A_banded = np.zeros((n, 3), dtype=precision)
     for i in range(n):
-        A_banded[i, 1] = -m * (i + 1) - k
-        if i > 0: A_banded[i, 0] = (i + 1) / m
-        if i < n - 1: A_banded[i, 2] = (i + 1) / m
+        math_i = i + 1
+        A_banded[i, 1] = -m * math_i - k
+        if i > 0: 
+            A_banded[i, 0] = m / math_i
+        if i < n - 1: 
+            A_banded[i, 2] = math_i
     return A_banded, b
 
 # --- 3. INFRASTRUKTURA BADAWCZA ---
@@ -129,28 +140,28 @@ def run_benchmark(task_name, matrix_func, method, n_range, precisions, track_con
             X_zad = get_X_vector(n, precision)
             A, b = matrix_func(n, X_zad, precision)
             
-            # Pamięć start
+            cond_val = np.nan
+            if track_cond:
+                # Uwarunkowanie = ||A|| * ||A^-1||
+                try:
+                    cond_val = np.linalg.cond(A, p=1)
+                except np.linalg.LinAlgError:
+                    cond_val = float('inf')
+            
             tracemalloc.start()
             tracemalloc.reset_peak()
             
-            # Czas start
             gc.collect()
             start_time = time.perf_counter()
             X_obl = method(A.copy(), b.copy(), precision)
             solve_time = time.perf_counter() - start_time
             
-            # Pamięć stop
             _, peak_memory = tracemalloc.get_traced_memory()
             tracemalloc.stop()
             memory_kb = peak_memory / 1024.0
             
             error = maximum_error(X_zad, X_obl)
             
-            cond_val = np.nan
-            if track_cond:
-                # Uwarunkowanie liczymy tylko dla pełnych macierzy
-                cond_val = np.linalg.cond(A, p=1)
-                
             results.append({
                 'n': n,
                 'error_max': error,
@@ -165,21 +176,141 @@ def run_benchmark(task_name, matrix_func, method, n_range, precisions, track_con
 
 # --- 4. WYKONANIE I WIZUALIZACJA ---
 
+def generate_plots():
+    """Odczytuje wyniki z CSV i generuje wykresy dla wszystkich zadań."""
+    
+    # --- ZADANIE 1 ---
+    if os.path.exists("data/Zadanie_1_Gauss_float32.csv") and os.path.exists("data/Zadanie_1_Gauss_float64.csv"):
+        df_z1_f32 = pd.read_csv("data/Zadanie_1_Gauss_float32.csv")
+        df_z1_f64 = pd.read_csv("data/Zadanie_1_Gauss_float64.csv")
+        
+        # Wykres błędów Z1
+        plt.figure(figsize=(8,4.5))
+        plt.plot(df_z1_f32['n'], df_z1_f32['error_max'], 'o-', color='red', label='float32')
+        plt.plot(df_z1_f64['n'], df_z1_f64['error_max'], 's-', color='blue', label='float64')
+        plt.yscale('log')
+        plt.axhline(1.0, color='gray', linestyle='--', label='Błąd krytyczny = 1.0')
+        plt.xticks(df_z1_f32['n'][::2])
+        plt.xlabel('Rozmiar macierzy (n)')
+        plt.ylabel('Błąd maksymalny ||x_zad - x_obl||')
+        plt.title('Zadanie 1: Załamanie precyzji (Macierz źle uwarunkowana)')
+        plt.legend()
+        plt.grid(True, which="both", ls="--", alpha=0.5)
+        plt.tight_layout()
+        plt.savefig('zad1_error.png', dpi=150)
+        plt.close()
+        
+        # Wykres uwarunkowania Z1
+        plt.figure(figsize=(8,4.5))
+        plt.plot(df_z1_f64['n'], df_z1_f64['cond'], 'D-', color='purple', label='Wskaźnik uwarunkowania')
+        plt.yscale('log')
+        plt.xticks(df_z1_f64['n'][::2])
+        plt.xlabel('Rozmiar macierzy (n)')
+        plt.ylabel('cond(A) = ||A|| * ||A⁻¹||')
+        plt.title('Zadanie 1: Złe uwarunkowanie macierzy')
+        plt.legend()
+        plt.grid(True, which="both", ls="--", alpha=0.5)
+        plt.tight_layout()
+        plt.savefig('zad1_cond.png', dpi=150)
+        plt.close()
+
+    # --- ZADANIE 2 ---
+    if os.path.exists("data/Zadanie_2_Gauss_float32.csv") and os.path.exists("data/Zadanie_2_Gauss_float64.csv"):
+        df_z2_f32 = pd.read_csv("data/Zadanie_2_Gauss_float32.csv")
+        df_z2_f64 = pd.read_csv("data/Zadanie_2_Gauss_float64.csv")
+        
+        # Wykres błędów Z2
+        plt.figure(figsize=(8,4.5))
+        plt.plot(df_z2_f32['n'], df_z2_f32['error_max'], 'o-', color='red', label='float32')
+        plt.plot(df_z2_f64['n'], df_z2_f64['error_max'], 's-', color='blue', label='float64')
+        plt.yscale('log')
+        plt.xlabel('Rozmiar macierzy (n)')
+        plt.ylabel('Błąd maksymalny')
+        plt.title('Zadanie 2: Stabilne rozwiązanie (Dobre uwarunkowanie)')
+        plt.legend()
+        plt.grid(True, which="both", ls="--", alpha=0.5)
+        plt.tight_layout()
+        plt.savefig('zad2_error.png', dpi=150)
+        plt.close()
+
+        # Wykres uwarunkowania Z2
+        plt.figure(figsize=(8,4.5))
+        plt.plot(df_z2_f64['n'], df_z2_f64['cond'], 'D-', color='green', label='Wskaźnik uwarunkowania')
+        plt.yscale('log')
+        plt.xlabel('Rozmiar macierzy (n)')
+        plt.ylabel('cond(A)')
+        plt.title('Zadanie 2: Wskaźnik uwarunkowania')
+        plt.legend()
+        plt.grid(True, which="both", ls="--", alpha=0.5)
+        plt.tight_layout()
+        plt.savefig('zad2_cond.png', dpi=150)
+        plt.close()
+
+    # --- ZADANIE 3 ---
+    if os.path.exists("data/Zadanie_3_Gauss_float64.csv") and os.path.exists("data/Zadanie_3_Thomas_float64.csv"):
+        df_g = pd.read_csv("data/Zadanie_3_Gauss_float64.csv")
+        df_t = pd.read_csv("data/Zadanie_3_Thomas_float64.csv")
+        
+        # Wykres czasu Z3
+        plt.figure(figsize=(8,4))
+        plt.plot(df_g['n'], df_g['time_s'], 'o-', color='purple', label='Gauss O(n³)')
+        plt.plot(df_t['n'], df_t['time_s'], 's-', color='green', label='Thomas O(n)')
+        plt.yscale('log')
+        plt.xlabel('Rozmiar macierzy (n)')
+        plt.ylabel('Czas [s] (skala LOG)')
+        plt.title('Zadanie 3: Przepaść wydajnościowa - Czas Obliczeń')
+        plt.legend()
+        plt.grid(True, which="both", ls="--", alpha=0.5)
+        plt.tight_layout()
+        plt.savefig('zad3_time_log.png', dpi=150)
+        plt.close()
+        
+        # Wykres pamięci Z3
+        plt.figure(figsize=(8,4))
+        plt.plot(df_g['n'], df_g['memory_kb'], 'o-', color='purple', label='Gauss O(n²)')
+        plt.plot(df_t['n'], df_t['memory_kb'], 's-', color='green', label='Thomas O(n)')
+        plt.yscale('log')
+        plt.xlabel('Rozmiar macierzy (n)')
+        plt.ylabel('Pamięć [KB] (skala LOG)')
+        plt.title('Zadanie 3: Różnica w zużyciu pamięci RAM')
+        plt.legend()
+        plt.grid(True, which="both", ls="--", alpha=0.5)
+        plt.tight_layout()
+        plt.savefig('zad3_mem_log.png', dpi=150)
+        plt.close()
+        
+        # Wykres błędów Z3
+        plt.figure(figsize=(8,4))
+        plt.plot(df_g['n'], df_g['error_max'], 'o-', color='purple', label='Błąd - Gauss', alpha=0.7)
+        plt.plot(df_t['n'], df_t['error_max'], 's-', color='green', label='Błąd - Thomas', alpha=0.7)
+        plt.yscale('log')
+        plt.xlabel('Rozmiar macierzy (n)')
+        plt.ylabel('Błąd maksymalny')
+        plt.title('Zadanie 3: Porównanie dokładności (Gauss vs Thomas)')
+        plt.legend()
+        plt.grid(True, which="both", ls="--", alpha=0.5)
+        plt.tight_layout()
+        plt.savefig('zad3_error.png', dpi=150)
+        plt.close()
+
 def main():
     precisions = [np.float32, np.float64]
     
-    # Doświadczenie 1 (Macierz źle uwarunkowana, awaria float32 w okolicach n=7, float64 n=13)
+    print("Rozpoczęto Zadanie 1...")
     run_benchmark("Zadanie_1_Gauss", task_1_matrix, gauss, range(2, 21), precisions, track_cond=True)
     
-    # Doświadczenie 2 (Macierz dobrze uwarunkowana, większe rozmiary)
-    run_benchmark("Zadanie_2_Gauss", task_2_matrix, gauss, range(2, 151, 5), precisions, track_cond=True)
+    print("Rozpoczęto Zadanie 2...")
+    run_benchmark("Zadanie_2_Gauss", task_2_matrix, gauss, range(2, 151, 10), precisions, track_cond=True)
     
-    # Doświadczenie 3 (Porównanie złożoności: Thomas vs Gauss)
+    print("Rozpoczęto Zadanie 3...")
     n_large = [10, 50, 100, 200, 300, 400, 500]
     run_benchmark("Zadanie_3_Gauss", task_3_matrix_full, gauss, n_large, [np.float64], track_cond=False)
     run_benchmark("Zadanie_3_Thomas", task_3_matrix_banded, thomas_memory, n_large, [np.float64], track_cond=False)
     
-    print("\nGotowe. Wyniki zapisane w folderze /data/ do tabel w raporcie.")
+    print("\nGenerowanie wykresów...")
+    generate_plots()
+    
+    print("Gotowe. Wyniki zapisane w folderze /data/, a wykresy w głównym katalogu.")
 
 if __name__ == "__main__":
     main()
